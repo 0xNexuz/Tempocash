@@ -11,17 +11,21 @@ Tempo Cash is a non-custodial payment protocol designed for the Tempo EVM testne
 4.  **Direct Settlement**: When the payer confirms, the contract calls `transferFrom` on the stablecoin's ERC20 contract, moving funds directly from the `payer` to the `merchant`.
 5.  **Immutability**: Once a `paymentId` is marked as `isPaid`, the contract prevents any further transactions for that ID.
 
-## Deployment Steps
+## Vercel Deployment
 
-1.  **Smart Contract**:
-    *   Deploy `contracts/TempoCash.sol` using Hardhat, Foundry, or Remix.
-    *   Copy the deployed address to `constants.tsx`.
-2.  **Stablecoins**:
-    *   On a testnet, you can deploy a mock ERC20 or use existing test tokens.
-    *   Update `SUPPORTED_TOKENS` in `constants.tsx`.
-3.  **Frontend**:
-    *   Run `npm install` and `npm start`.
-    *   Ensure your MetaMask is pointed to the correct network.
+Deploying to Vercel is straightforward:
+
+1.  **Push to GitHub**: Push these files to a GitHub repository.
+2.  **Import to Vercel**: Go to [Vercel](https://vercel.com), click "Add New" -> "Project", and select your repo.
+3.  **Automatic Detection**: Vercel will detect the `package.json` and use Vite to build the project automatically.
+4.  **Environment Variables**: If you add any backend features later, you can add your API keys in the Project Settings.
+5.  **Deploy**: Click "Deploy". Your app will be live on a `.vercel.app` domain.
+
+## Testing with Wallets
+
+You can test this using any EVM-compatible wallet (MetaMask, Rabby, etc.). 
+*   **Demo Mode**: Use the toggle in the header to simulate the payment flow without a wallet or testnet tokens.
+*   **Live Mode**: Switch your wallet to **Tempo Testnet** (RPC: `https://rpc.tempo.testnet`, Chain ID: `123`).
 
 ## User Flow
 *   **Merchant**: Connect wallet -> Input 50 USDC -> Get link `.../#/pay/0x...`.
