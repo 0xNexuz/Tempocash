@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 import { ethers } from 'ethers';
 import { QRCodeSVG } from 'qrcode.react';
-import { SUPPORTED_TOKENS, TEMPO_CASH_ABI, TEMPO_CASH_CONTRACT_ADDRESS } from '../constants';
+import { SUPPORTED_TOKENS, TEMPO_CASH_ABI, TEMPO_CASH_CONTRACT_ADDRESS, TEMPO_NETWORK_CONFIG } from '../constants';
 
 const MerchantDashboard: React.FC<{ account: string | null; isDemoMode: boolean }> = ({ account, isDemoMode }) => {
   const [amount, setAmount] = useState('');
@@ -13,22 +13,22 @@ const MerchantDashboard: React.FC<{ account: string | null; isDemoMode: boolean 
 
   const createLink = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!account) return alert("Connect wallet first (or use Demo Mode)!");
+    if (!account) return alert("Please connect your wallet first.");
     
     setLoading(true);
     try {
       let paymentId;
       
       if (isDemoMode) {
-        await new Promise(r => setTimeout(r, 1200));
-        paymentId = "demo-" + Math.random().toString(36).substring(2, 15);
+        await new Promise(r => setTimeout(r, 1000));
+        paymentId = "demo-" + Math.random().toString(36).substring(2, 12);
         
-        // Persist demo data for the payer view
+        // Use exactly what the merchant typed for display consistency
         const demoData = {
           id: paymentId,
           merchant: account,
           token: selectedToken.address,
-          amount: amount,
+          amount: amount, 
           rawAmount: ethers.parseUnits(amount || "0", selectedToken.decimals).toString(),
           memo: memo,
           isPaid: false,
@@ -37,6 +37,13 @@ const MerchantDashboard: React.FC<{ account: string | null; isDemoMode: boolean 
         localStorage.setItem(paymentId, JSON.stringify(demoData));
       } else {
         const provider = new ethers.BrowserProvider((window as any).ethereum);
+        
+        // Network Check
+        const network = await provider.getNetwork();
+        if (Number(network.chainId) !== parseInt(TEMPO_NETWORK_CONFIG.chainId, 16)) {
+          throw new Error("Wrong network. Please switch to Tempo Testnet in MetaMask.");
+        }
+
         const signer = await provider.getSigner();
         const contract = new ethers.Contract(TEMPO_CASH_CONTRACT_ADDRESS, TEMPO_CASH_ABI, signer);
 
@@ -45,14 +52,18 @@ const MerchantDashboard: React.FC<{ account: string | null; isDemoMode: boolean 
         const receipt = await tx.wait();
 
         const log = receipt.logs.find((l: any) => l.fragment && l.fragment.name === 'PaymentCreated');
-        paymentId = log ? log.args[0] : ethers.id(Date.now().toString());
+        paymentId = log ? log.args[0] : null;
+        
+        if (!paymentId) {
+          throw new Error("Transaction succeeded but no payment ID was emitted.");
+        }
       }
 
       const url = `${window.location.origin}/#/pay/${paymentId}`;
       setGeneratedLink(url);
     } catch (err: any) {
       console.error(err);
-      alert("Error: " + (err.message || "Failed to create link"));
+      alert(err.reason || err.message || "Failed to create payment link.");
     } finally {
       setLoading(false);
     }
@@ -63,7 +74,7 @@ const MerchantDashboard: React.FC<{ account: string | null; isDemoMode: boolean 
       <div className="bg-white rounded-3xl shadow-xl border border-slate-100 overflow-hidden ring-1 ring-slate-900/5">
         <div className="bg-slate-900 p-8 text-white relative">
           {isDemoMode && (
-            <div className="absolute top-4 right-4 bg-amber-400 text-slate-900 text-[10px] font-black px-2 py-0.5 rounded uppercase tracking-tighter">Demo Sandbox</div>
+            <div className="absolute top-4 right-4 bg-amber-400 text-slate-900 text-[10px] font-black px-2 py-0.5 rounded uppercase tracking-tighter">Demo Mode Enabled</div>
           )}
           <h2 className="text-2xl font-bold mb-1">Payment Request Link</h2>
           <p className="text-slate-400 text-sm font-medium">Define your invoice and generate a shareable URL.</p>
@@ -72,7 +83,7 @@ const MerchantDashboard: React.FC<{ account: string | null; isDemoMode: boolean 
         {!generatedLink ? (
           <form onSubmit={createLink} className="p-8 space-y-8">
             <div className="space-y-4">
-              <label className="block text-sm font-bold text-slate-700">Receive in</label>
+              <label className="block text-sm font-bold text-slate-700">Receive in Asset</label>
               <div className="grid grid-cols-3 gap-3">
                 {SUPPORTED_TOKENS.map((t) => (
                   <button
@@ -96,12 +107,12 @@ const MerchantDashboard: React.FC<{ account: string | null; isDemoMode: boolean 
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
               <div className="space-y-4">
-                <label className="block text-sm font-bold text-slate-700">Amount</label>
+                <label className="block text-sm font-bold text-slate-700">Amount to Request</label>
                 <div className="relative group">
                   <div className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold">$</div>
                   <input
                     type="number"
-                    step="0.01"
+                    step="any"
                     required
                     value={amount}
                     onChange={(e) => setAmount(e.target.value)}
@@ -115,13 +126,13 @@ const MerchantDashboard: React.FC<{ account: string | null; isDemoMode: boolean 
               </div>
 
               <div className="space-y-4">
-                <label className="block text-sm font-bold text-slate-700">Reference / Memo</label>
+                <label className="block text-sm font-bold text-slate-700">Payment Memo</label>
                 <input
                   type="text"
                   required
                   value={memo}
                   onChange={(e) => setMemo(e.target.value)}
-                  placeholder="e.g. Inv #123"
+                  placeholder="Invoice #101"
                   className="w-full px-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 focus:outline-none transition-all font-medium"
                 />
               </div>
@@ -130,10 +141,10 @@ const MerchantDashboard: React.FC<{ account: string | null; isDemoMode: boolean 
             <button
               disabled={loading || !account}
               type="submit"
-              className="w-full bg-indigo-600 text-white py-5 rounded-2xl font-bold text-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-xl shadow-indigo-100 flex items-center justify-center gap-3"
+              className="w-full bg-indigo-600 text-white py-5 rounded-2xl font-bold text-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-xl shadow-indigo-100 flex items-center justify-center gap-3 active:scale-[0.98]"
             >
               {loading && <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>}
-              {loading ? "Generating Link..." : account ? "Create Payment Link" : "Connect Wallet to Start"}
+              {loading ? "Confirming on Ledger..." : account ? "Generate Payment Link" : "Connect Wallet to Continue"}
             </button>
           </form>
         ) : (
@@ -143,19 +154,19 @@ const MerchantDashboard: React.FC<{ account: string | null; isDemoMode: boolean 
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
               </svg>
             </div>
-            <h3 className="text-3xl font-black text-slate-900 mb-2">Link Generated</h3>
-            <p className="text-slate-500 mb-8 font-medium">Your non-custodial link is ready to be shared.</p>
+            <h3 className="text-3xl font-black text-slate-900 mb-2">Ready to Share</h3>
+            <p className="text-slate-500 mb-8 font-medium">Your request is live. Share this link to receive funds.</p>
             
             <div className="bg-slate-50 p-5 rounded-2xl border border-dashed border-slate-300 flex items-center justify-between mb-10 group hover:border-indigo-300 transition-colors">
               <code className="text-[10px] text-slate-500 font-mono truncate mr-6 italic">{generatedLink}</code>
               <button 
                 onClick={() => {
                   navigator.clipboard.writeText(generatedLink || '');
-                  alert("Link copied to clipboard!");
+                  alert("Link copied!");
                 }}
                 className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-xs font-bold hover:bg-indigo-700 transition-all flex-shrink-0"
               >
-                Copy Link
+                Copy
               </button>
             </div>
 
@@ -170,7 +181,7 @@ const MerchantDashboard: React.FC<{ account: string | null; isDemoMode: boolean 
                       className="rounded-xl overflow-hidden"
                     />
                  </div>
-                 <p className="mt-6 text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">Scan to Pay</p>
+                 <p className="mt-6 text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">Scan to Settle</p>
               </div>
             </div>
 
@@ -181,7 +192,7 @@ const MerchantDashboard: React.FC<{ account: string | null; isDemoMode: boolean 
               <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
               </svg>
-              Create Another Link
+              New Payment Link
             </button>
           </div>
         )}
