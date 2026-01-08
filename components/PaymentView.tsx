@@ -15,21 +15,28 @@ const PaymentView: React.FC<{ paymentId: string; account: string | null; isDemoM
     try {
       if (isDemoMode) {
         await new Promise(r => setTimeout(r, 800));
-        setDetails({
-          id: paymentId,
-          merchant: "0xMerchant72394Demo",
-          token: SUPPORTED_TOKENS[0].address,
-          amount: "150.00",
-          rawAmount: ethers.parseUnits("150.00", 18).toString(),
-          memo: "Demo Service Invoice #123",
-          isPaid: false,
-          createdAt: Date.now() / 1000
-        });
+        
+        // Try to load persisted demo data
+        const saved = localStorage.getItem(paymentId);
+        if (saved) {
+          setDetails(JSON.parse(saved));
+        } else {
+          // Fallback if link opened directly in demo mode without creation
+          setDetails({
+            id: paymentId,
+            merchant: "0xMerchant72394Demo",
+            token: SUPPORTED_TOKENS[0].address,
+            amount: "150.00",
+            rawAmount: ethers.parseUnits("150.00", 18).toString(),
+            memo: "Demo Service Invoice #123",
+            isPaid: false,
+            createdAt: Date.now() / 1000
+          });
+        }
         setStep('view');
       } else {
         const provider = new ethers.JsonRpcProvider("https://rpc.tempo.testnet");
         
-        // Check if contract exists at address to prevent CALL_EXCEPTION
         const code = await provider.getCode(TEMPO_CASH_CONTRACT_ADDRESS);
         if (code === "0x") {
           throw new Error("Contract not found at address. Check network connection.");
@@ -37,6 +44,8 @@ const PaymentView: React.FC<{ paymentId: string; account: string | null; isDemoM
 
         const contract = new ethers.Contract(TEMPO_CASH_CONTRACT_ADDRESS, TEMPO_CASH_ABI, provider);
         const p = await contract.getPayment(paymentId);
+        
+        // Use case-insensitive find for robustness
         const tokenInfo = SUPPORTED_TOKENS.find(t => t.address.toLowerCase() === p.token.toLowerCase());
         const formattedAmount = ethers.formatUnits(p.amount, tokenInfo?.decimals || 18);
 
@@ -54,21 +63,20 @@ const PaymentView: React.FC<{ paymentId: string; account: string | null; isDemoM
         if (p.isPaid) {
           setStep('success');
         } else {
-          // Skip approval step if token is native (Zero Address)
           const isNative = p.token === "0x0000000000000000000000000000000000000000";
           setStep(isNative ? 'pay' : 'view');
         }
       }
     } catch (err: any) {
       console.error("Failed to fetch payment", err);
-      // Fallback demo for visibility
+      // Failover for testing purposes
       setDetails({
         id: paymentId,
-        merchant: "0xMerchantFallback",
+        merchant: "0xMerchantErrorFallback",
         token: SUPPORTED_TOKENS[0].address,
-        amount: "150.00",
-        rawAmount: ethers.parseUnits("150.00", 18).toString(),
-        memo: "Demo Checkout (Fallback)",
+        amount: "0.00",
+        rawAmount: "0",
+        memo: "Error fetching link data",
         isPaid: false,
         createdAt: Date.now() / 1000
       });
@@ -97,7 +105,7 @@ const PaymentView: React.FC<{ paymentId: string; account: string | null; isDemoM
       setStep('pay');
     } catch (err: any) {
       console.error(err);
-      alert("Approval failed: " + (err.reason || err.message || "Approval rejected or network issue"));
+      alert("Approval failed: " + (err.reason || err.message || "Rejected"));
     } finally {
       setProcessing(false);
     }
@@ -110,6 +118,14 @@ const PaymentView: React.FC<{ paymentId: string; account: string | null; isDemoM
       if (isDemoMode) {
         await new Promise(r => setTimeout(r, 1800));
         setTxHash(ethers.id("tx-" + Date.now()));
+        
+        // Update local mock state
+        const saved = localStorage.getItem(paymentId);
+        if (saved) {
+          const data = JSON.parse(saved);
+          data.isPaid = true;
+          localStorage.setItem(paymentId, JSON.stringify(data));
+        }
       } else {
         const provider = new ethers.BrowserProvider((window as any).ethereum);
         const signer = await provider.getSigner();
@@ -118,12 +134,10 @@ const PaymentView: React.FC<{ paymentId: string; account: string | null; isDemoM
         const isNative = details.token === "0x0000000000000000000000000000000000000000";
         const txOptions = isNative ? { value: details.rawAmount } : {};
 
-        // Explicitly catch estimation errors to prevent generic browser alerts
         try {
           await contract.pay.estimateGas(paymentId, txOptions);
         } catch (gasErr: any) {
-          console.error("Gas estimate failed", gasErr);
-          throw new Error("Transaction is expected to fail. Check if you have enough balance or if payment is already complete.");
+          throw new Error("Transaction likely to fail. Ensure you have enough balance.");
         }
 
         const tx = await contract.pay(paymentId, txOptions);
@@ -133,7 +147,7 @@ const PaymentView: React.FC<{ paymentId: string; account: string | null; isDemoM
       setStep('success');
     } catch (err: any) {
       console.error(err);
-      alert("Settlement failed: " + (err.reason || err.message || "Check network/balance"));
+      alert("Payment failed: " + (err.reason || err.message));
     } finally {
       setProcessing(false);
     }
@@ -142,7 +156,7 @@ const PaymentView: React.FC<{ paymentId: string; account: string | null; isDemoM
   if (loading) return (
     <div className="flex flex-col items-center justify-center py-32 gap-6">
       <div className="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
-      <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px] animate-pulse">Syncing Tempo Node...</p>
+      <p className="text-slate-400 font-bold uppercase tracking-widest text-[10px] animate-pulse">Querying Tempo Ledger...</p>
     </div>
   );
 
@@ -223,5 +237,4 @@ const PaymentView: React.FC<{ paymentId: string; account: string | null; isDemoM
   );
 };
 
-// Fix: Add missing default export
 export default PaymentView;

@@ -20,9 +20,21 @@ const MerchantDashboard: React.FC<{ account: string | null; isDemoMode: boolean 
       let paymentId;
       
       if (isDemoMode) {
-        // Simulated latency
-        await new Promise(r => setTimeout(r, 1500));
-        paymentId = ethers.id("demo-" + Date.now());
+        await new Promise(r => setTimeout(r, 1200));
+        paymentId = "demo-" + Math.random().toString(36).substring(2, 15);
+        
+        // Persist demo data for the payer view
+        const demoData = {
+          id: paymentId,
+          merchant: account,
+          token: selectedToken.address,
+          amount: amount,
+          rawAmount: ethers.parseUnits(amount || "0", selectedToken.decimals).toString(),
+          memo: memo,
+          isPaid: false,
+          createdAt: Date.now() / 1000
+        };
+        localStorage.setItem(paymentId, JSON.stringify(demoData));
       } else {
         const provider = new ethers.BrowserProvider((window as any).ethereum);
         const signer = await provider.getSigner();
@@ -32,7 +44,7 @@ const MerchantDashboard: React.FC<{ account: string | null; isDemoMode: boolean 
         const tx = await contract.createPayment(selectedToken.address, parsedAmount, memo);
         const receipt = await tx.wait();
 
-        const log = receipt.logs.find((l: any) => l.eventName === 'PaymentCreated');
+        const log = receipt.logs.find((l: any) => l.fragment && l.fragment.name === 'PaymentCreated');
         paymentId = log ? log.args[0] : ethers.id(Date.now().toString());
       }
 
@@ -51,7 +63,7 @@ const MerchantDashboard: React.FC<{ account: string | null; isDemoMode: boolean 
       <div className="bg-white rounded-3xl shadow-xl border border-slate-100 overflow-hidden ring-1 ring-slate-900/5">
         <div className="bg-slate-900 p-8 text-white relative">
           {isDemoMode && (
-            <div className="absolute top-4 right-4 bg-amber-400 text-slate-900 text-[10px] font-black px-2 py-0.5 rounded uppercase">Simulated</div>
+            <div className="absolute top-4 right-4 bg-amber-400 text-slate-900 text-[10px] font-black px-2 py-0.5 rounded uppercase tracking-tighter">Demo Sandbox</div>
           )}
           <h2 className="text-2xl font-bold mb-1">Payment Request Link</h2>
           <p className="text-slate-400 text-sm font-medium">Define your invoice and generate a shareable URL.</p>
@@ -121,7 +133,7 @@ const MerchantDashboard: React.FC<{ account: string | null; isDemoMode: boolean 
               className="w-full bg-indigo-600 text-white py-5 rounded-2xl font-bold text-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-xl shadow-indigo-100 flex items-center justify-center gap-3"
             >
               {loading && <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>}
-              {loading ? "Initializing TIP-20 Link..." : account ? "Generate Payment Link" : "Connect Wallet to Start"}
+              {loading ? "Generating Link..." : account ? "Create Payment Link" : "Connect Wallet to Start"}
             </button>
           </form>
         ) : (
@@ -131,8 +143,8 @@ const MerchantDashboard: React.FC<{ account: string | null; isDemoMode: boolean 
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
               </svg>
             </div>
-            <h3 className="text-3xl font-black text-slate-900 mb-2">Ready to Receive</h3>
-            <p className="text-slate-500 mb-8 font-medium">Your non-custodial link is active on the network.</p>
+            <h3 className="text-3xl font-black text-slate-900 mb-2">Link Generated</h3>
+            <p className="text-slate-500 mb-8 font-medium">Your non-custodial link is ready to be shared.</p>
             
             <div className="bg-slate-50 p-5 rounded-2xl border border-dashed border-slate-300 flex items-center justify-between mb-10 group hover:border-indigo-300 transition-colors">
               <code className="text-[10px] text-slate-500 font-mono truncate mr-6 italic">{generatedLink}</code>
@@ -158,7 +170,7 @@ const MerchantDashboard: React.FC<{ account: string | null; isDemoMode: boolean 
                       className="rounded-xl overflow-hidden"
                     />
                  </div>
-                 <p className="mt-6 text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">Scan to Settle</p>
+                 <p className="mt-6 text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">Scan to Pay</p>
               </div>
             </div>
 
@@ -169,7 +181,7 @@ const MerchantDashboard: React.FC<{ account: string | null; isDemoMode: boolean 
               <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
               </svg>
-              Create New Request
+              Create Another Link
             </button>
           </div>
         )}
