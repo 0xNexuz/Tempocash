@@ -1,6 +1,7 @@
 
 import React, { useState } from 'react';
 import { ethers } from 'ethers';
+import { QRCodeSVG } from 'qrcode.react';
 import { SUPPORTED_TOKENS, TEMPO_CASH_ABI, TEMPO_CASH_CONTRACT_ADDRESS } from '../constants';
 
 const MerchantDashboard: React.FC<{ account: string | null; isDemoMode: boolean }> = ({ account, isDemoMode }) => {
@@ -137,7 +138,7 @@ const MerchantDashboard: React.FC<{ account: string | null; isDemoMode: boolean 
               <code className="text-[10px] text-slate-500 font-mono truncate mr-6 italic">{generatedLink}</code>
               <button 
                 onClick={() => {
-                  navigator.clipboard.writeText(generatedLink);
+                  navigator.clipboard.writeText(generatedLink || '');
                   alert("Link copied to clipboard!");
                 }}
                 className="bg-indigo-600 text-white px-4 py-2 rounded-xl text-xs font-bold hover:bg-indigo-700 transition-all flex-shrink-0"
@@ -146,14 +147,18 @@ const MerchantDashboard: React.FC<{ account: string | null; isDemoMode: boolean 
               </button>
             </div>
 
-            <div className="flex justify-center mb-10">
-              <div className="p-6 bg-white border border-slate-100 rounded-[2rem] shadow-2xl shadow-slate-200">
-                 <div className="w-40 h-40 bg-slate-50 flex flex-col items-center justify-center text-slate-300 gap-3 border border-slate-100 rounded-2xl">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-14 w-14 opacity-20" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
-                    </svg>
-                    <span className="text-[10px] font-black uppercase tracking-widest opacity-40">Scan to Pay</span>
+            <div className="flex flex-col items-center justify-center mb-10">
+              <div className="p-10 bg-white border border-slate-100 rounded-[2.5rem] shadow-2xl shadow-slate-200 ring-1 ring-slate-100">
+                 <div className="bg-slate-50 p-4 rounded-3xl border border-slate-100 shadow-inner">
+                    <QRCodeSVG 
+                      value={generatedLink || ''} 
+                      size={200} 
+                      level="H" 
+                      includeMargin={false}
+                      className="rounded-xl overflow-hidden"
+                    />
                  </div>
+                 <p className="mt-6 text-[10px] font-black uppercase tracking-[0.3em] text-slate-400">Scan to Settle</p>
               </div>
             </div>
 
