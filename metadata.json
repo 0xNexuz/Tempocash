@@ -1,0 +1,5 @@
+{
+  "name": "Tempo Cash",
+  "description": "A production-ready decentralised Pay-by-Link system for stablecoin payments on EVM chains. Merchant-friendly, non-custodial, and Stripe-inspired UI.",
+  "requestFramePermissions": []
+}
